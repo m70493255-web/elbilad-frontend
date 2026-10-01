@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getBackend, forwardCookies } from "../_lib";
 
+export const dynamic = "force-dynamic";
+
 const BACKEND_PATH = "/api/admin/down-payments";
 
 export async function GET(req: NextRequest) {
   try {
-    const res = await fetch(`${getBackend()}${BACKEND_PATH}`, forwardCookies(req, {}));
+    const res = await fetch(`${getBackend()}${BACKEND_PATH}`, forwardCookies(req, {
+      cache: "no-store",
+    }));
     const data = await res.json();
     return NextResponse.json(data, { status: res.status });
   } catch {

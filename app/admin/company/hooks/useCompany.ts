@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { useCompanyStore } from "../../../store/companyStore";
 import { API, defaultData, toFullUrl, withCacheBust } from "../constants";
+import { apiFetch } from "../../../lib/api";
 import type { CompanyData } from "../types";
 
 export function useCompany() {
@@ -12,7 +13,7 @@ export function useCompany() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    fetch(`/api/admin/company`)
+    apiFetch(`/api/admin/company`, { credentials: "include" })
       .then((r) => r.json())
       .then((res) => {
         const imageKeys = ["logo", "header", "footer", "stamp"];
@@ -35,7 +36,7 @@ export function useCompany() {
     const formData = new FormData();
     formData.append("image", file);
     try {
-      const res = await fetch(`/api/admin/company/upload/${key}`, {
+      const res = await apiFetch(`/api/admin/company/upload/${key}`, {
         method: "POST",
         credentials: "include",
         body: formData,
@@ -54,7 +55,7 @@ export function useCompany() {
 
   const handleImageDelete = async (key: string) => {
     try {
-      const res = await fetch(`/api/admin/company/image/${key}`, {
+      const res = await apiFetch(`/api/admin/company/image/${key}`, {
         method: "DELETE",
         credentials: "include",
       });
@@ -70,13 +71,14 @@ export function useCompany() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const res = await fetch(`/api/admin/company`, {
+      const res = await apiFetch(`/api/admin/company`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify(data),
       });
       if (!res.ok) throw new Error();
-      await fetch("/api/revalidate?tag=company", { method: "POST" });
+      await apiFetch("/api/revalidate?tag=company", { method: "POST", credentials: "include" });
       toast.success("تم حفظ بيانات الشركة");
     } catch {
       toast.error("فشل الحفظ");

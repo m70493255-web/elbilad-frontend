@@ -1,12 +1,14 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
+import { apiFetch } from "../../../lib/api";
 import type { Category } from "../types";
 
 const BASE = "/api/admin/main-categories";
 
 export function useMainCategories() {
   const [categories, setCategories] = useState<Category[]>([]);
+  const [tableLoading, setTableLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [name, setName] = useState("");
   const [error, setError] = useState("");
@@ -19,11 +21,14 @@ export function useMainCategories() {
   const [search, setSearch] = useState("");
 
   const fetchCategories = useCallback(() => {
-    fetch(`${BASE}/extra`, { credentials: "include" })
+    setTableLoading(true);
+    apiFetch(`${BASE}/extra`, { credentials: "include" })
       .then(async (res) => {
         const data: Category[] = res.ok ? await res.json() : [];
         setCategories(data);
-      });
+      })
+      .catch(() => toast.error("فشل تحميل التصنيفات"))
+      .finally(() => setTableLoading(false));
   }, []);
 
   useEffect(() => { fetchCategories(); }, [fetchCategories]);
@@ -32,15 +37,15 @@ export function useMainCategories() {
     e.preventDefault();
     setError("");
     setLoading(true);
-    const res = await fetch(BASE, {
+    const res = await apiFetch(BASE, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
       body: JSON.stringify({ name }),
     });
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
     setLoading(false);
-    if (!res.ok) return setError(data.error);
+    if (!res.ok) return setError(data.error ?? "حدث خطأ");
     setShowModal(false);
     setName("");
     toast.success(`تم إضافة "${data.name}" بنجاح 🎉`);
@@ -51,15 +56,15 @@ export function useMainCategories() {
     e.preventDefault();
     setEditError("");
     setEditLoading(true);
-    const res = await fetch(`${BASE}/rename`, {
+    const res = await apiFetch(`${BASE}/rename`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
       body: JSON.stringify({ oldName: editCat!.name, newName: editName }),
     });
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
     setEditLoading(false);
-    if (!res.ok) return setEditError(data.error);
+    if (!res.ok) return setEditError(data.error ?? "حدث خطأ");
     setEditCat(null);
     toast.success("تم حفظ التعديلات بنجاح ✅");
     fetchCategories();
@@ -69,14 +74,14 @@ export function useMainCategories() {
     if (!confirmDelete) return;
     const catName = confirmDelete;
     setConfirmDelete(null);
-    const res = await fetch(`${BASE}/remove`, {
+    const res = await apiFetch(`${BASE}/remove`, {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
       body: JSON.stringify({ name: catName }),
     });
-    const data = await res.json();
-    if (!res.ok) return toast.error(data.error);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return toast.error(data.error ?? "حدث خطأ أثناء الحذف");
     toast.success(`تم حذف "${catName}" بنجاح ✅`);
     fetchCategories();
   }
@@ -85,8 +90,10 @@ export function useMainCategories() {
 
   return {
     categories, filtered, search, setSearch,
+    tableLoading,
     showModal, setShowModal, name, setName, error, loading, handleAdd,
     editCat, setEditCat, editName, setEditName, editError, editLoading, handleEdit,
     confirmDelete, setConfirmDelete, confirmDeleteAction,
   };
 }
+

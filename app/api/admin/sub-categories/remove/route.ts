@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getBackend, forwardCookies } from "../../_lib";
 
+export const dynamic = "force-dynamic";
+
 export async function DELETE(req: NextRequest) {
   const body = await req.json();
   const res = await fetch(`${getBackend()}/api/admin/sub-categories/remove`, forwardCookies(req, {

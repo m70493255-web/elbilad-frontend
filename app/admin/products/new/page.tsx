@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
+import { compressImage } from "@/app/lib/compress-image";
 
 export default function NewProductPage() {
   const router = useRouter();
@@ -17,51 +18,111 @@ export default function NewProductPage() {
   const [imageMode, setImageMode] = useState<"upload" | "url">("upload");
   const [gallery, setGallery] = useState<{ mode: "upload" | "url"; file?: File; preview?: string; url?: string }[]>([]);
   const [saving, setSaving] = useState(false);
+  const [compressing, setCompressing] = useState(false);
   const [categories, setCategories] = useState<string[]>([]);
   const [subCategories, setSubCategories] = useState<string[]>([]);
   const [subCategory, setSubCategory] = useState("");
   const imageInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
 
+  // Clean up object URLs on unmount to prevent browser memory leaks
+  const createdUrlsRef = useRef<string[]>([]);
+  useEffect(() => {
+    return () => {
+      createdUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, []);
+
   useEffect(() => {
     Promise.all([
-      fetch("/api/admin/main-categories/extra", { credentials: "include" }).then((r) => r.json()),
-      fetch("/api/admin/sub-categories", { credentials: "include" }).then((r) => r.json()),
-      fetch("/api/admin/sub-categories/extra", { credentials: "include" }).then((r) => r.json()),
+      fetch("/api/admin/sub-categories", { credentials: "include" })
+        .then((r) => (r.ok ? r.json() : []))
+        .catch(() => []),
+      fetch("/api/admin/main-categories/extra", { credentials: "include" })
+        .then((r) => (r.ok ? r.json() : []))
+        .catch(() => []),
     ])
-      .then(([mainCats, fromProducts, extra]: [{name:string}[], {name:string}[], {name:string}[]]) => {
-        setCategories(mainCats.map((c) => c.name).filter(Boolean).sort());
-        const names = new Set(fromProducts.map((s) => s.name));
-        const all = [...fromProducts, ...extra.filter((s) => !names.has(s.name))];
-        setSubCategories(all.map((s) => s.name).filter(Boolean).sort());
+      .then(([catsData, mainCatsData]) => {
+        const safeCats = Array.isArray(catsData) ? catsData : [];
+        const safeMainCats = Array.isArray(mainCatsData) ? mainCatsData : [];
+
+        // categories: موديل وسلسلة المنتج (category في الداتابيز)
+        setCategories(
+          safeCats
+            .map((c: { category?: string; name?: string }) => c.category || c.name || "")
+            .filter(Boolean)
+            .sort()
+        );
+
+        // subCategories: القسم الرئيسي العام (subCategory في الداتابيز)
+        setSubCategories(
+          safeMainCats
+            .map((m: { name?: string }) => m.name || "")
+            .filter(Boolean)
+            .sort()
+        );
       })
       .catch(() => {});
   }, []);
 
-  function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    setImageFile(file);
-    setImagePreview(URL.createObjectURL(file));
-    e.target.value = "";
+    setCompressing(true);
+    try {
+      // ضغط الصورة فوراً في المتصفح لتقليل الحجم بأكثر من 90%
+      const compressed = await compressImage(file);
+      if (imagePreview) URL.revokeObjectURL(imagePreview);
+      const previewUrl = URL.createObjectURL(compressed);
+      createdUrlsRef.current.push(previewUrl);
+
+      setImageFile(compressed);
+      setImagePreview(previewUrl);
+    } catch {
+      setImageFile(file);
+      setImagePreview(URL.createObjectURL(file));
+    } finally {
+      setCompressing(false);
+      e.target.value = "";
+    }
   }
 
   function clearMainImage() {
+    if (imagePreview) URL.revokeObjectURL(imagePreview);
     setImageFile(null);
     setImagePreview("");
     setImageUrl("");
   }
 
-  function addGalleryFiles(e: React.ChangeEvent<HTMLInputElement>) {
+  async function addGalleryFiles(e: React.ChangeEvent<HTMLInputElement>) {
     const files = e.target.files;
-    if (!files) return;
-    const newItems = Array.from(files).map((f) => ({
-      mode: "upload" as const,
-      file: f,
-      preview: URL.createObjectURL(f),
-    }));
-    setGallery((prev) => [...prev, ...newItems]);
-    e.target.value = "";
+    if (!files || files.length === 0) return;
+    setCompressing(true);
+    try {
+      const compressedItems = await Promise.all(
+        Array.from(files).map(async (f) => {
+          const comp = await compressImage(f);
+          const preview = URL.createObjectURL(comp);
+          createdUrlsRef.current.push(preview);
+          return {
+            mode: "upload" as const,
+            file: comp,
+            preview,
+          };
+        })
+      );
+      setGallery((prev) => [...prev, ...compressedItems]);
+    } catch {
+      const fallbackItems = Array.from(files).map((f) => ({
+        mode: "upload" as const,
+        file: f,
+        preview: URL.createObjectURL(f),
+      }));
+      setGallery((prev) => [...prev, ...fallbackItems]);
+    } finally {
+      setCompressing(false);
+      e.target.value = "";
+    }
   }
 
   function addGalleryUrl() {
@@ -73,21 +134,26 @@ export default function NewProductPage() {
   }
 
   function removeGalleryItem(index: number) {
-    setGallery((prev) => prev.filter((_, i) => i !== index));
+    setGallery((prev) => {
+      const item = prev[index];
+      if (item?.preview) URL.revokeObjectURL(item.preview);
+      return prev.filter((_, i) => i !== index);
+    });
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (saving || compressing) return;
     setSaving(true);
     try {
       const fd = new FormData();
-      fd.append("name", name);
+      fd.append("name", name.trim());
       fd.append("originalPrice", originalPrice);
-      fd.append("salePrice", salePrice);
-      fd.append("category", category);
-      fd.append("subCategory", subCategory);
+      if (salePrice.trim()) fd.append("salePrice", salePrice.trim());
+      if (category.trim()) fd.append("category", category.trim());
+      if (subCategory.trim()) fd.append("subCategory", subCategory.trim());
       fd.append("inStock", String(inStock));
-      fd.append("description", description);
+      if (description.trim()) fd.append("description", description.trim());
 
       if (imageMode === "upload" && imageFile) {
         fd.append("image", imageFile);
@@ -111,11 +177,11 @@ export default function NewProductPage() {
         body: fd,
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "فشل الإضافة");
+      if (!res.ok) throw new Error(data.error || "فشل إضافة المنتج");
       toast.success("تم إضافة المنتج بنجاح ✅");
       router.push("/admin/products");
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "حدث خطأ");
+      toast.error(err instanceof Error ? err.message : "حدث خطأ أثناء الحفظ");
     } finally {
       setSaving(false);
     }
@@ -125,7 +191,14 @@ export default function NewProductPage() {
 
   return (
     <form onSubmit={handleSubmit} className="w-full max-w-lg mx-auto space-y-4 py-4">
-      <h1 className="text-xl font-bold text-gray-800">إضافة منتج جديد</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-bold text-gray-800">إضافة منتج جديد</h1>
+        {compressing && (
+          <span className="text-xs text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full animate-pulse">
+            جاري ضغط وتحسين الصورة...
+          </span>
+        )}
+      </div>
 
       {/* Main Image */}
       <div>
@@ -171,7 +244,7 @@ export default function NewProductPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
                 </svg>
                 <p className="text-sm text-gray-500 group-hover:text-blue-600">اضغط لاختيار صورة</p>
-                <p className="text-xs text-gray-400">JPG, PNG, WEBP</p>
+                <p className="text-xs text-gray-400">JPG, PNG, WEBP (يتم تحسينها وضغطها تلقائياً)</p>
               </button>
             )}
           </>
@@ -239,19 +312,25 @@ export default function NewProductPage() {
 
       {/* Category */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">التصنيف الرئيسي</label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">تصنيف المنتج / الموديل</label>
         <select value={category} onChange={(e) => setCategory(e.target.value)} className={inputCls}>
-          <option value="">-- اختر تصنيف --</option>
+          <option value="">-- اختر التصنيف --</option>
           {categories.map((c) => <option key={c} value={c}>{c}</option>)}
+          {category && !categories.includes(category) && (
+            <option value={category}>{category}</option>
+          )}
         </select>
       </div>
 
       {/* Sub Category */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">التصنيف الفرعي</label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">القسم الرئيسي</label>
         <select value={subCategory} onChange={(e) => setSubCategory(e.target.value)} className={inputCls}>
-          <option value="">-- اختر تصنيف فرعي --</option>
+          <option value="">-- اختر القسم --</option>
           {subCategories.map((s) => <option key={s} value={s}>{s}</option>)}
+          {subCategory && !subCategories.includes(subCategory) && (
+            <option value={subCategory}>{subCategory}</option>
+          )}
         </select>
       </div>
 
@@ -275,7 +354,7 @@ export default function NewProductPage() {
         <button type="button" onClick={() => router.push("/admin/products")} className="flex-1 py-2.5 border border-gray-300 text-gray-700 rounded-xl text-sm hover:bg-gray-50">
           إلغاء
         </button>
-        <button type="submit" disabled={saving} className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 disabled:opacity-60">
+        <button type="submit" disabled={saving || compressing} className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 disabled:opacity-60 transition-colors">
           {saving ? "جاري الحفظ..." : "حفظ المنتج"}
         </button>
       </div>

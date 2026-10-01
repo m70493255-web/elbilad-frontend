@@ -16,17 +16,16 @@ export default function CategoryItemsPage() {
 
   useEffect(() => {
     Promise.all([
-      apiFetch("/api/admin/sub-categories", { credentials: "include" }).then((r) => r.json()),
-      apiFetch("/api/admin/sub-categories/settings", { credentials: "include" }).then((r) => r.json()),
-      apiFetch("/api/admin/sub-categories/settings/max", { credentials: "include" }).then((r) => r.json()),
+      apiFetch("/api/admin/sub-categories", { credentials: "include" }).then((r) => r.json().catch(() => [])),
+      apiFetch("/api/admin/sub-categories/settings", { credentials: "include" }).then((r) => r.json().catch(() => [])),
+      apiFetch("/api/admin/sub-categories/settings/max", { credentials: "include" }).then((r) => r.json().catch(() => ({}))),
     ]).then(([subs, sets, maxData]) => {
       setItems(Array.isArray(subs) ? subs : []);
       setSettings(Array.isArray(sets) ? sets : []);
       const m = maxData?.max ?? 4;
       setMax(m);
       setMaxInput(m);
-      setLoading(false);
-    });
+    }).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
   async function handleSaveMax() {

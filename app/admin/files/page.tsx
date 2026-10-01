@@ -2,6 +2,8 @@
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { FiUpload, FiLink, FiExternalLink } from "react-icons/fi";
+import { apiFetch } from "../../lib/api";
+import toast from "react-hot-toast";
 
 type FooterItem = { image: string; linkType: string; link: string; file: string };
 type Data = { qrImage: string; qrLink: string; img1: string; link1: string; linkType1: string; file1: string; img2: string; link2: string; linkType2: string; file2: string; footerItems: FooterItem[] };
@@ -10,6 +12,7 @@ export default function FilesPage() {
   const [data, setData] = useState<Data>({ qrImage: "", qrLink: "", img1: "", link1: "", linkType1: "link", file1: "", img2: "", link2: "", linkType2: "link", file2: "", footerItems: [] });
   const [savingSection, setSavingSection] = useState<string | null>(null);
   const [msgs, setMsgs] = useState<Record<string, string>>({});
+  const [pageLoading, setPageLoading] = useState(true);
 
   function showMsg(section: string, text: string) {
     setMsgs((p) => ({ ...p, [section]: text }));
@@ -34,7 +37,7 @@ export default function FilesPage() {
   function bumpKey(k: string) { setImgKeys((p) => ({ ...p, [k]: Date.now() })); }
 
   useEffect(() => {
-    fetch(`/api/admin/company`, { credentials: "include" })
+    apiFetch(`/api/admin/company`, { credentials: "include" })
       .then((r) => r.json())
       .then((d) => {
         const normalize = (item: Partial<FooterItem>): FooterItem => ({ image: item.image || "", linkType: item.linkType || (item.file ? "file" : "link"), link: item.link || "", file: item.file || "" });
@@ -52,7 +55,9 @@ export default function FilesPage() {
           file2: d.file2 || "",
           footerItems: items,
         });
-      });
+      })
+      .catch(() => toast.error("فشل تحميل البيانات"))
+      .finally(() => setPageLoading(false));
   }, []);
 
   async function deleteImage(field: "qrImage" | "img1" | "img2", section: string, saveBody: object) {
@@ -70,88 +75,92 @@ export default function FilesPage() {
 
   async function uploadQr(file: File) {
     setUploading("qr");
-    const fd = new FormData();
-    fd.append("image", file);
-    const r = await fetch(`/api/admin/company/footer-image/qrImage`, { method: "POST", credentials: "include", body: fd });
-    const json = await r.json();
-    if (json.url) { setData((p) => ({ ...p, qrImage: json.url })); bumpKey("qr"); }
-    setUploading(null);
+    try {
+      const fd = new FormData();
+      fd.append("image", file);
+      const r = await apiFetch(`/api/admin/company/footer-image/qrImage`, { method: "POST", credentials: "include", body: fd });
+      const json = await r.json();
+      if (!r.ok) { toast.error(json.error || "فشل رفع الصورة"); } else if (json.url) { setData((p) => ({ ...p, qrImage: json.url })); bumpKey("qr"); }
+    } catch { toast.error("فشل رفع الصورة"); } finally { setUploading(null); }
   }
 
   async function uploadImg1(file: File) {
     setUploading("img1");
-    const fd = new FormData();
-    fd.append("image", file);
-    const r = await fetch(`/api/admin/company/footer-image/img1`, { method: "POST", credentials: "include", body: fd });
-    const json = await r.json();
-    if (json.url) { setData((p) => ({ ...p, img1: json.url })); bumpKey("img1"); }
-    setUploading(null);
+    try {
+      const fd = new FormData();
+      fd.append("image", file);
+      const r = await apiFetch(`/api/admin/company/footer-image/img1`, { method: "POST", credentials: "include", body: fd });
+      const json = await r.json();
+      if (!r.ok) { toast.error(json.error || "فشل رفع الصورة"); } else if (json.url) { setData((p) => ({ ...p, img1: json.url })); bumpKey("img1"); }
+    } catch { toast.error("فشل رفع الصورة"); } finally { setUploading(null); }
   }
 
   async function uploadImg2(file: File) {
     setUploading("img2");
-    const fd = new FormData();
-    fd.append("image", file);
-    const r = await fetch(`/api/admin/company/footer-image/img2`, { method: "POST", credentials: "include", body: fd });
-    const json = await r.json();
-    if (json.url) { setData((p) => ({ ...p, img2: json.url })); bumpKey("img2"); }
-    setUploading(null);
+    try {
+      const fd = new FormData();
+      fd.append("image", file);
+      const r = await apiFetch(`/api/admin/company/footer-image/img2`, { method: "POST", credentials: "include", body: fd });
+      const json = await r.json();
+      if (!r.ok) { toast.error(json.error || "فشل رفع الصورة"); } else if (json.url) { setData((p) => ({ ...p, img2: json.url })); bumpKey("img2"); }
+    } catch { toast.error("فشل رفع الصورة"); } finally { setUploading(null); }
   }
 
   async function uploadFile1(file: File) {
     setUploading("file1");
-    const fd = new FormData();
-    fd.append("file", file);
-    const r = await fetch(`/api/admin/company/footer-file/file1`, { method: "POST", credentials: "include", body: fd });
-    const json = await r.json();
-    if (json.url) setData((p) => ({ ...p, file1: json.url }));
-    setUploading(null);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const r = await apiFetch(`/api/admin/company/footer-file/file1`, { method: "POST", credentials: "include", body: fd });
+      const json = await r.json();
+      if (!r.ok) { toast.error(json.error || "فشل رفع الملف"); } else if (json.url) setData((p) => ({ ...p, file1: json.url }));
+    } catch { toast.error("فشل رفع الملف"); } finally { setUploading(null); }
   }
 
   async function uploadFile2(file: File) {
     setUploading("file2");
-    const fd = new FormData();
-    fd.append("file", file);
-    const r = await fetch(`/api/admin/company/footer-file/file2`, { method: "POST", credentials: "include", body: fd });
-    const json = await r.json();
-    if (json.url) setData((p) => ({ ...p, file2: json.url }));
-    setUploading(null);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const r = await apiFetch(`/api/admin/company/footer-file/file2`, { method: "POST", credentials: "include", body: fd });
+      const json = await r.json();
+      if (!r.ok) { toast.error(json.error || "فشل رفع الملف"); } else if (json.url) setData((p) => ({ ...p, file2: json.url }));
+    } catch { toast.error("فشل رفع الملف"); } finally { setUploading(null); }
   }
 
   async function uploadItemImg(index: number, file: File) {
     setUploading(`img-${index}`);
-    const fd = new FormData();
-    fd.append("image", file);
-    const r = await fetch(`/api/admin/company/footer-items/image/${index}`, { method: "POST", credentials: "include", body: fd });
-    const json = await r.json();
-    if (json.url) {
-      setData((p) => {
-        const items = [...p.footerItems];
-        items[index] = { ...items[index], image: json.url };
-        return { ...p, footerItems: items };
-      });
-      bumpKey(`img-${index}`);
-    }
-    setUploading(null);
+    try {
+      const fd = new FormData();
+      fd.append("image", file);
+      const r = await apiFetch(`/api/admin/company/footer-items/image/${index}`, { method: "POST", credentials: "include", body: fd });
+      const json = await r.json();
+      if (!r.ok) { toast.error(json.error || "فشل رفع الصورة"); } else if (json.url) {
+        setData((p) => {
+          const items = [...p.footerItems];
+          items[index] = { ...items[index], image: json.url };
+          return { ...p, footerItems: items };
+        });
+        bumpKey(`img-${index}`);
+      }
+    } catch { toast.error("فشل رفع الصورة"); } finally { setUploading(null); }
   }
 
   async function uploadItemFile(index: number, file: File) {
     setUploading(`file-${index}`);
-    const fd = new FormData();
-    fd.append("file", file);
-    const r = await fetch(`/api/admin/company/footer-items/file/${index}`, { method: "POST", credentials: "include", body: fd });
-    const json = await r.json();
-    if (json.url) setData((p) => {
-      const items = [...p.footerItems];
-      items[index] = { ...items[index], file: json.url };
-      return { ...p, footerItems: items };
-    });
-    setUploading(null);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const r = await apiFetch(`/api/admin/company/footer-items/file/${index}`, { method: "POST", credentials: "include", body: fd });
+      const json = await r.json();
+      if (!r.ok) { toast.error(json.error || "فشل رفع الملف"); } else if (json.url) setData((p) => {
+        const items = [...p.footerItems];
+        items[index] = { ...items[index], file: json.url };
+        return { ...p, footerItems: items };
+      });
+    } catch { toast.error("فشل رفع الملف"); } finally { setUploading(null); }
   }
 
- 
-
- 
   function updateItem(index: number, field: keyof FooterItem, value: string) {
     setData((p) => {
       const items = [...p.footerItems];
@@ -167,14 +176,22 @@ export default function FilesPage() {
 
   async function saveSection(section: string, body: object) {
     setSavingSection(section);
-    const r = await fetch(`/api/admin/company`, {
-      method: "PUT", credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    setSavingSection(null);
-    showMsg(section, r.ok ? "✅ تم الحفظ" : "❌ حدث خطأ");
+    try {
+      const r = await apiFetch(`/api/admin/company`, {
+        method: "PUT", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      showMsg(section, r.ok ? "✅ تم الحفظ" : "❌ حدث خطأ");
+    } catch {
+      showMsg(section, "❌ حدث خطأ");
+    } finally {
+      setSavingSection(null);
+    }
   }
+
+
+  if (pageLoading) return <div className="text-center py-20 text-gray-500 text-xl">جاري التحميل...</div>;
 
   return (
     <div className="w-full space-y-4 sm:space-y-6" dir="rtl">

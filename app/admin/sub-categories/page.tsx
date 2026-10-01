@@ -32,7 +32,7 @@ export default function SubCategoriesPage() {
   const [editName, setEditName] = useState("");
   const [editCategory, setEditCategory] = useState("");
   const [editLoading, setEditLoading] = useState(false);
-  const allSubCategories = [...new Set(items.map((i) => i.name).filter(Boolean))];
+  const allSubCategories = Array.from(new Set(items.map((i) => i.name).filter(Boolean)));
   const [confirmDelete, setConfirmDelete] = useState<SubCat | null>(null);
   const [max, setMax] = useState(4);
   const [currentPage, setCurrentPage] = useState(1);
@@ -42,24 +42,30 @@ export default function SubCategoriesPage() {
   const [addLoading, setAddLoading] = useState(false);
   const [imageUploadCat, setImageUploadCat] = useState<SubCat | null>(null);
   const [imageUploading, setImageUploading] = useState(false);
+  const [tableLoading, setTableLoading] = useState(true);
 
   function getSetting(cat: SubCat): Settings | undefined {
     return settings.find((s) => s.category === cat.category && s.subCategory === cat.name);
   }
 
   async function fetchData() {
-    const [res1, res2, res3, res4] = await Promise.all([
-      apiFetch("/api/admin/sub-categories", { credentials: "include" }),
-      apiFetch("/api/admin/sub-categories/settings", { credentials: "include" }),
-      apiFetch("/api/admin/sub-categories/max", { credentials: "include" }),
-      apiFetch("/api/admin/sub-categories/extra", { credentials: "include" }),
-    ]);
-    const fromProducts: SubCat[] = res1.ok ? await res1.json() : [];
-    const extra: SubCat[] = res4.ok ? await res4.json() : [];
-    const names = new Set(fromProducts.map((c) => c.name));
-    setItems([...fromProducts, ...extra.filter((c) => !names.has(c.name))]);
-    if (res2.ok) setSettings(await res2.json());
-    if (res3.ok) { const d = await res3.json(); setMax(d?.max ?? 4); }
+    setTableLoading(true);
+    try {
+      const [res1, res2, res3, res4] = await Promise.all([
+        apiFetch("/api/admin/sub-categories", { credentials: "include" }),
+        apiFetch("/api/admin/sub-categories/settings", { credentials: "include" }),
+        apiFetch("/api/admin/sub-categories/settings/max", { credentials: "include" }),
+        apiFetch("/api/admin/sub-categories/extra", { credentials: "include" }),
+      ]);
+      const fromProducts: SubCat[] = res1.ok ? await res1.json() : [];
+      const extra: SubCat[] = res4.ok ? await res4.json() : [];
+      const names = new Set(fromProducts.map((c) => c.name));
+      setItems([...fromProducts, ...extra.filter((c) => !names.has(c.name))]);
+      if (res2.ok) setSettings(await res2.json());
+      if (res3.ok) { const d = await res3.json(); setMax(d?.max ?? 4); }
+    } finally {
+      setTableLoading(false);
+    }
   }
 
   async function handleImageUpload(file: File) {
@@ -218,7 +224,12 @@ export default function SubCategoriesPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {paginated.map((cat, i) => {
+              {tableLoading ? (
+                <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400 text-sm">جاري التحميل...</td></tr>
+              ) : paginated.length === 0 ? (
+                <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400 text-sm">لا توجد تصنيفات فرعية</td></tr>
+              ) : (
+              paginated.map((cat, i) => {
                 const setting = getSetting(cat);
                 return (
                   <tr key={`${cat.category}-${cat.name}`} className="hover:bg-gray-50">
@@ -273,10 +284,7 @@ export default function SubCategoriesPage() {
                     </td>
                   </tr>
                 );
-              })}
-              {paginated.length === 0 && (
-                <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400 text-sm">لا توجد تصنيفات فرعية</td></tr>
-              )}
+              }))}
             </tbody>
           </table>
         </div>

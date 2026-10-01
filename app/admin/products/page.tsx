@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 
@@ -9,6 +9,8 @@ type Product = {
   category: string;
   originalPrice: number;
   salePrice?: number;
+  image?: string;
+  inStock?: boolean;
 };
 
 type SubCat = { name: string; category: string; count: number };
@@ -31,43 +33,100 @@ export default function ProductsPage() {
   const [subCats, setSubCats] = useState<SubCat[]>([]);
   const [selectedCat, setSelectedCat] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [loading, setLoading] = useState(true);
   const PAGE_SIZE = 10;
 
-  async function fetchProducts() {
-    const res = await fetch("/api/admin/products", { credentials: "include" });
-    if (res.ok) setProducts(await res.json());
-  }
+  // Debounce search input to avoid hitting backend on every keystroke
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const handleSearchChange = (value: string) => {
+    setSearch(value);
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    searchTimeoutRef.current = setTimeout(() => {
+      setDebouncedSearch(value);
+      setCurrentPage(1);
+    }, 350);
+  };
+
+  // Fetch categories once on mount
+  useEffect(() => {
+    fetch("/api/admin/sub-categories", { credentials: "include" })
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data: SubCat[]) => {
+        if (Array.isArray(data)) setSubCats(data);
+      })
+      .catch(() => {});
+  }, []);
+
+  // Fetch products with server-side pagination & filtering
+  const loadProducts = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      params.set("page", String(currentPage));
+      params.set("limit", String(PAGE_SIZE));
+      if (selectedCat) params.set("category", selectedCat);
+      if (debouncedSearch.trim()) params.set("search", debouncedSearch.trim());
+
+      const res = await fetch(`/api/admin/products?${params.toString()}`, { credentials: "include" });
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+
+      if (data && Array.isArray(data.products)) {
+        setProducts(data.products);
+        setTotalCount(data.total || 0);
+        setTotalPages(data.totalPages || 1);
+      } else if (Array.isArray(data)) {
+        setProducts(data);
+        setTotalCount(data.length);
+        setTotalPages(Math.max(1, Math.ceil(data.length / PAGE_SIZE)));
+      }
+    } catch {
+      toast.error("فشل تحميل المنتجات");
+    } finally {
+      setLoading(false);
+    }
+  }, [currentPage, selectedCat, debouncedSearch]);
 
   useEffect(() => {
-    fetch("/api/admin/products", { credentials: "include" })
-      .then((res) => res.ok ? res.json() : null)
-      .then((data) => { if (data) setProducts(data); });
-    fetch("/api/admin/sub-categories", { credentials: "include" })
-      .then((res) => res.ok ? res.json() : [])
-      .then((data: SubCat[]) => setSubCats(data));
-  }, []);
+    loadProducts();
+  }, [loadProducts]);
 
   async function confirmDeleteAction() {
     if (!confirmDelete) return;
     const { id, name } = confirmDelete;
     setConfirmDelete(null);
-    const res = await fetch(`/api/admin/products/${id}`, { method: "DELETE", credentials: "include" });
-    const text = await res.text();
-    const data = text ? JSON.parse(text) : {};
-    if (!res.ok) return toast.error(data.message || "فشل الحذف");
-    toast.success(`تم حذف "${name}" بنجاح ✅`);
-    fetchProducts();
-  }
 
-  const filtered = products.filter((p) => {
-    const matchSearch = p.name?.includes(search) || p.category?.includes(search);
-    const matchCat = !selectedCat || p.category === selectedCat;
-    return matchSearch && matchCat;
-  });
-  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
-  const paginated = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+    // Optimistic UI update immediately (no heavy refetch needed)
+    setProducts((prev) => {
+      const updated = prev.filter((p) => p._id !== id);
+      if (updated.length === 0 && currentPage > 1) {
+        setCurrentPage((p) => p - 1);
+      }
+      return updated;
+    });
+    setTotalCount((prev) => Math.max(0, prev - 1));
+
+    try {
+      const res = await fetch(`/api/admin/products/${id}`, { method: "DELETE", credentials: "include" });
+      const text = await res.text();
+      const data = text ? JSON.parse(text) : {};
+      if (!res.ok) {
+        toast.error(data.message || data.error || "فشل الحذف");
+        // Revert by re-fetching if failed
+        loadProducts();
+        return;
+      }
+      toast.success(`تم حذف "${name}" بنجاح ✅`);
+    } catch {
+      toast.error("فشل الاتصال بالخادم");
+      loadProducts();
+    }
+  }
 
   return (
     <div>
@@ -75,7 +134,7 @@ export default function ProductsPage() {
         <h1 className="text-2xl font-bold text-gray-800">الأصناف</h1>
         <button
           onClick={() => router.push("/admin/products/new")}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium transition-colors"
         >
           + إضافة منتج
         </button>
@@ -89,17 +148,17 @@ export default function ProductsPage() {
               !selectedCat ? "bg-blue-600 text-white border-blue-600" : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
             }`}
           >
-            الكل ({products.length})
+            الكل {totalCount > 0 && `(${totalCount})`}
           </button>
           {subCats.map((cat) => (
             <button
-              key={cat.category}
-              onClick={() => { setSelectedCat(cat.category); setCurrentPage(1); }}
+              key={cat.category || cat.name}
+              onClick={() => { setSelectedCat(cat.category || cat.name); setCurrentPage(1); }}
               className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
-                selectedCat === cat.category ? "bg-blue-600 text-white border-blue-600" : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
+                selectedCat === (cat.category || cat.name) ? "bg-blue-600 text-white border-blue-600" : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
               }`}
             >
-              {cat.category} ({cat.count})
+              {cat.category || cat.name} ({cat.count})
             </button>
           ))}
         </div>
@@ -108,22 +167,28 @@ export default function ProductsPage() {
       <div className="bg-white rounded-xl shadow overflow-hidden">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-3 border-b border-gray-100">
           <span className="text-sm text-gray-500">
-            إجمالي المنتجات: <span className="font-bold text-gray-700">{products.length}</span>
+            إجمالي المنتجات: <span className="font-bold text-gray-700">{totalCount}</span>
           </span>
           <input
             type="text"
             value={search}
-            onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
-            placeholder="ابحث عن منتج..."
+            onChange={(e) => handleSearchChange(e.target.value)}
+            placeholder="ابحث عن منتج بالاسم أو التصنيف..."
             className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full sm:w-72"
           />
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto relative">
+          {loading && (
+            <div className="absolute inset-0 bg-white/60 flex items-center justify-center z-10">
+              <div className="w-7 h-7 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+            </div>
+          )}
           <table className="w-full min-w-max text-sm text-right">
             <thead className="bg-gray-50 text-gray-600 font-semibold text-base">
               <tr>
                 <th className="px-5 py-3 w-12">#</th>
+                <th className="px-4 py-3 w-16">الصورة</th>
                 <th className="px-5 py-3 min-w-[200px]">الاسم</th>
                 <th className="px-5 py-3 min-w-[140px]">التصنيف</th>
                 <th className="px-5 py-3 min-w-[130px]">السعر</th>
@@ -131,10 +196,26 @@ export default function ProductsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {paginated.map((p, i) => (
+              {products.map((p, i) => (
                 <tr key={p._id} className="hover:bg-gray-50 text-base">
                   <td className="px-5 py-3 text-gray-400 font-medium">{(currentPage - 1) * PAGE_SIZE + i + 1}</td>
-                  <td className="px-5 py-3 font-medium text-gray-800">{p.name}</td>
+                  <td className="px-4 py-3">
+                    {p.image ? (
+                      <img src={p.image} alt={p.name} className="w-10 h-10 object-cover rounded-lg border border-gray-200" />
+                    ) : (
+                      <div className="w-10 h-10 rounded-lg bg-gray-100 border border-gray-200 flex items-center justify-center text-gray-300 text-xs">
+                        بدون
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-5 py-3 font-medium text-gray-800">
+                    <div>{p.name}</div>
+                    {p.inStock === false && (
+                      <span className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-normal">
+                        غير متوفر
+                      </span>
+                    )}
+                  </td>
                   <td className="px-5 py-3 text-gray-600">{p.category || "—"}</td>
                   <td className="px-5 py-3 text-gray-700">
                     {p.salePrice ? (
@@ -158,9 +239,9 @@ export default function ProductsPage() {
                   </td>
                 </tr>
               ))}
-              {paginated.length === 0 && (
+              {!loading && products.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-gray-400">لا توجد منتجات</td>
+                  <td colSpan={6} className="px-4 py-8 text-center text-gray-400">لا توجد منتجات</td>
                 </tr>
               )}
             </tbody>
@@ -216,7 +297,7 @@ export default function ProductsPage() {
         </div>
       )}
 
-      {/* Confirm Delete */}
+      {/* Confirm Delete Modal */}
       {confirmDelete && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4" dir="rtl">
           <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm text-center">
