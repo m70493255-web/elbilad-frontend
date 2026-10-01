@@ -14,7 +14,10 @@ export function useCompany() {
 
   useEffect(() => {
     apiFetch(`/api/admin/company`, { credentials: "include" })
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error();
+        return r.json();
+      })
       .then((res) => {
         const imageKeys = ["logo", "header", "footer", "stamp"];
         const merged: CompanyData = { ...defaultData };
@@ -78,7 +81,6 @@ export function useCompany() {
         body: JSON.stringify(data),
       });
       if (!res.ok) throw new Error();
-      await apiFetch("/api/revalidate?tag=company", { method: "POST", credentials: "include" });
       toast.success("تم حفظ بيانات الشركة");
     } catch {
       toast.error("فشل الحفظ");
