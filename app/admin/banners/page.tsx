@@ -7,7 +7,7 @@ import type { BannerItem } from "./types";
 
 export default function BannersPage() {
   const {
-    banners, loading, addingBanner, inputRefs,
+    banners, loading, addingBanner, fetchError, inputRefs,
     handleUpload, handleDeleteImage, handleDeleteSlot, handleToggle, handleAddBanner, handleReorder,
   } = useBanners();
 
@@ -28,7 +28,6 @@ export default function BannersPage() {
     const [moved] = newBanners.splice(from, 1);
     newBanners.splice(dropIndex, 0, moved);
 
-    // build original-index order array
     const originalOrder = Array.from({ length: banners.length }, (_, i) => i);
     const [movedIdx] = originalOrder.splice(from, 1);
     originalOrder.splice(dropIndex, 0, movedIdx);
@@ -38,6 +37,22 @@ export default function BannersPage() {
     handleReorder(newBanners, originalOrder);
   };
   const onDragEnd = () => { dragIndex.current = null; setDragOver(null); };
+
+  if (fetchError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="bg-red-50 border border-red-200 rounded-2xl px-6 py-8 text-center max-w-sm">
+          <p className="text-red-600 font-semibold mb-3">تعذّر تحميل البانرات</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition"
+          >
+            إعادة المحاولة
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 -mx-3 -mt-0 sm:-mx-5 md:-mx-6">

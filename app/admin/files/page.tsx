@@ -13,6 +13,7 @@ export default function FilesPage() {
   const [savingSection, setSavingSection] = useState<string | null>(null);
   const [msgs, setMsgs] = useState<Record<string, string>>({});
   const [pageLoading, setPageLoading] = useState(true);
+  const [confirmDeleteItem, setConfirmDeleteItem] = useState<number | null>(null);
 
   function showMsg(section: string, text: string) {
     setMsgs((p) => ({ ...p, [section]: text }));
@@ -21,9 +22,13 @@ export default function FilesPage() {
   const [uploading, setUploading] = useState<string | null>(null);
 
   function openFile(url: string) {
-    const rawUrl = url.replace("/image/upload/", "/raw/upload/").replace(/\/fl_attachment:[^/]+\//, "/");
-    const viewerUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(rawUrl)}&embedded=false`;
-    window.open(viewerUrl, "_blank", "noopener,noreferrer");
+    if (!url) return;
+    if (url.includes("cloudinary.com")) {
+      const proxyUrl = `/api/file-proxy?url=${encodeURIComponent(url)}`;
+      window.open(proxyUrl, "_blank", "noopener,noreferrer");
+    } else {
+      window.open(url, "_blank", "noopener,noreferrer");
+    }
   }
   const [imgKeys, setImgKeys] = useState<Record<string, number>>({});
   const qrRef = useRef<HTMLInputElement>(null);
@@ -35,6 +40,50 @@ export default function FilesPage() {
   const fileRefs = useRef<Record<number, HTMLInputElement | null>>({});
 
   function bumpKey(k: string) { setImgKeys((p) => ({ ...p, [k]: Date.now() })); }
+
+  async function addItem() {
+    try {
+      const r = await apiFetch("/api/admin/company/footer-items/add", {
+        method: "POST",
+        credentials: "include",
+      });
+      if (!r.ok) {
+        toast.error("فشل إضافة عنصر جديد");
+        return;
+      }
+      setData((p) => ({
+        ...p,
+        footerItems: [
+          ...p.footerItems,
+          { image: "", linkType: "link", link: "", file: "" },
+        ],
+      }));
+      toast.success("تم إضافة عنصر جديد");
+    } catch {
+      toast.error("حدث خطأ أثناء الإضافة");
+    }
+  }
+
+  async function deleteFooterItem(index: number) {
+    try {
+      const r = await apiFetch(`/api/admin/company/footer-items/${index}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!r.ok) {
+        toast.error("فشل حذف العنصر");
+        return;
+      }
+      setData((p) => ({
+        ...p,
+        footerItems: p.footerItems.filter((_, i) => i !== index),
+      }));
+      setConfirmDeleteItem(null);
+      toast.success("تم حذف العنصر بنجاح");
+    } catch {
+      toast.error("حدث خطأ أثناء الحذف");
+    }
+  }
 
   useEffect(() => {
     apiFetch(`/api/admin/company`, { credentials: "include" })
@@ -255,8 +304,15 @@ export default function FilesPage() {
       {/* Footer Items Table */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="px-5 py-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-gray-600">معروف</h2>
+          <h2 className="text-sm font-semibold text-gray-600">معروف (عناصر الفوتر)</h2>
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={addItem}
+              className="px-3 py-1.5 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 transition flex items-center gap-1 shadow-sm"
+            >
+              + إضافة عنصر
+            </button>
             {msgs["items"] && <span className={`text-xs px-2 py-1 rounded-lg font-medium ${msgs["items"].includes("✅") ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-600"}`}>{msgs["items"]}</span>}
             <button onClick={() => saveSection("items", { footerItems: data.footerItems })} disabled={savingSection === "items"}
               className="px-4 py-1.5 bg-emerald-600 text-white text-xs font-medium rounded-lg hover:bg-emerald-700 disabled:opacity-50 transition-colors">
@@ -266,8 +322,15 @@ export default function FilesPage() {
         </div>
 
         {data.footerItems.length === 0 ? (
-          <div className="px-5 py-10 text-center text-sm text-gray-400">
-            لا توجد صور — اضغط &quot;إضافة صورة&quot; لإضافة أول صورة
+          <div className="px-5 py-10 text-center text-sm text-gray-400 space-y-3">
+            <p>لا توجد عناصر حالياً — أضف عنصراً جديداً ليظهر في فوتر الموقع</p>
+            <button
+              type="button"
+              onClick={addItem}
+              className="px-4 py-2 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 transition inline-block"
+            >
+              + إضافة أول عنصر
+            </button>
           </div>
         ) : (
           <div className="divide-y divide-gray-100">
@@ -366,8 +429,17 @@ export default function FilesPage() {
                   )}
                 </div>
 
-              
-
+                <div className="shrink-0 pt-2 sm:pt-0">
+                  <button
+                    type="button"
+                    onClick={() => setConfirmDeleteItem(i)}
+                    className="px-2.5 py-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 border border-red-200 rounded-lg text-xs font-medium transition flex items-center gap-1"
+                    title="حذف هذا العنصر بالكامل"
+                  >
+                    <span>حذف العنصر</span>
+                    <span className="text-sm">🗑️</span>
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -563,6 +635,35 @@ export default function FilesPage() {
           </div>
         </div>
       </div>
+
+      {/* Confirm Delete Item Modal */}
+      {confirmDeleteItem !== null && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl p-5 w-full max-w-sm text-center">
+            <div className="text-3xl mb-2">🗑️</div>
+            <h3 className="text-base font-bold text-gray-800 mb-1">تأكيد حذف العنصر</h3>
+            <p className="text-sm text-gray-500 mb-4">
+              هل أنت متأكد من حذف هذا العنصر بالكامل من الفوتر؟ سيتم إزالته وحذف ملفاته المرتبطة.
+            </p>
+            <div className="flex gap-2 justify-center">
+              <button
+                type="button"
+                onClick={() => deleteFooterItem(confirmDeleteItem)}
+                className="bg-red-500 hover:bg-red-600 text-white text-xs font-bold px-4 py-2 rounded-lg transition"
+              >
+                نعم، احذف
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmDeleteItem(null)}
+                className="border border-gray-300 text-gray-700 text-xs font-bold px-4 py-2 rounded-lg hover:bg-gray-50 transition"
+              >
+                إلغاء
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

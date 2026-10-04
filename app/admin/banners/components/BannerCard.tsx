@@ -1,8 +1,20 @@
 "use client";
 import Image from "next/image";
 import { useRef } from "react";
-import { API, LABELS } from "../constants";
+import { LABELS } from "../constants";
 import type { BannerItem } from "../types";
+
+/**
+ * Returns a Cloudinary URL resized to a narrow thumbnail (w=600, auto quality/format).
+ * Falls back to the original URL for non-Cloudinary sources.
+ * This prevents the admin from downloading full-resolution banners
+ * (often 1–5 MB) just to show a small 280×112px card preview.
+ */
+function toAdminThumb(url: string): string {
+  if (!url.includes("res.cloudinary.com")) return url;
+  // Insert transformation before the version segment: /upload/w_600,q_auto,f_auto/v…
+  return url.replace("/upload/", "/upload/w_600,q_auto,f_auto/");
+}
 
 interface BannerCardProps {
   banner: BannerItem;
@@ -52,11 +64,11 @@ export default function BannerCard({
         {hasImage ? (
           <>
             <Image
-              src={banner.url.startsWith("http") ? banner.url : `${API}${banner.url}`}
+              src={toAdminThumb(banner.url)}
               alt={LABELS[index] || `بانر ${index + 1}`}
               fill
               className="object-cover transition-transform duration-500 group-hover:scale-105 opacity-90"
-              unoptimized
+              sizes="(max-width: 1280px) 100vw, 600px"
             />
             <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all duration-300 flex items-center justify-center">
               <span className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-white/90 text-gray-800 text-sm font-semibold px-4 py-2 rounded-xl shadow">
@@ -96,7 +108,7 @@ export default function BannerCard({
           <input
             ref={(el) => { localRef.current = el; inputRef(el); }}
             type="file"
-            accept="image/*"
+            accept="image/jpeg,image/png,image/webp,image/gif"
             className="hidden"
             onChange={(e) => e.target.files?.[0] && onUpload(index, e.target.files[0])}
           />

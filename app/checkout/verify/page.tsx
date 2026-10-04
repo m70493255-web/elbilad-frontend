@@ -145,11 +145,25 @@ export default function VerifyPage() {
     const id = typeof window !== "undefined" ? localStorage.getItem("dbOrderId") : null;
     if (!id) return;
     setDbOrderId(id);
+    let attempts = 0;
+    const maxAttempts = 60; // 5 minutes max polling
     pollRef.current = setInterval(async () => {
-      const res = await fetch(`/api/orders/${id}/status`);
-      if (!res.ok) return;
-      const data = await res.json();
-      if (data.status === "confirmed") { clearInterval(pollRef.current!); setConfirmed(true); }
+      attempts++;
+      if (attempts > maxAttempts) {
+        clearInterval(pollRef.current!);
+        return;
+      }
+      try {
+        const res = await fetch(`/api/orders/${id}/status`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.status === "confirmed") {
+          clearInterval(pollRef.current!);
+          setConfirmed(true);
+        }
+      } catch {
+        // ignore network glitches
+      }
     }, 5000);
     return () => clearInterval(pollRef.current!);
   }, []);

@@ -71,6 +71,9 @@ export default function ReviewsPage() {
 
   async function saveEdit() {
     if (!editReview) return;
+    if (!editForm.name.trim() || !editForm.comment.trim()) {
+      return toast.error("يرجى إدخال اسم العميل والتعليق");
+    }
     setSaving(true);
     const res = await apiFetch(`/api/admin/reviews/${editReview._id}`, {
       method: "PUT",
@@ -87,6 +90,9 @@ export default function ReviewsPage() {
   }
 
   async function saveAdd() {
+    if (!addForm.name.trim() || !addForm.comment.trim()) {
+      return toast.error("يرجى إدخال اسم العميل والتعليق");
+    }
     setSaving(true);
     const res = await apiFetch("/api/admin/reviews/admin-add", {
       method: "POST",
@@ -104,7 +110,9 @@ export default function ReviewsPage() {
   }
 
   const filtered = reviews.filter(
-    (r) => r.name.toLowerCase().includes(search.toLowerCase()) || r.comment.includes(search)
+    (r) =>
+      (r.name || "").toLowerCase().includes(search.toLowerCase()) ||
+      (r.comment || "").includes(search)
   );
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
@@ -113,8 +121,9 @@ export default function ReviewsPage() {
 
   function handleSearch(val: string) { setSearch(val); setPage(1); }
 
-  const stars = (n: number) => "★".repeat(n) + "☆".repeat(5 - n);
-  const truncateComment = (text: string, limit = 40) => {
+  const stars = (n: number) => "★".repeat(Math.max(0, Math.min(5, n))) + "☆".repeat(Math.max(0, 5 - Math.min(5, n)));
+  const truncateComment = (text?: string, limit = 40) => {
+    if (!text) return "";
     return text.length <= limit ? text : text.slice(0, limit) + "...";
   };
 

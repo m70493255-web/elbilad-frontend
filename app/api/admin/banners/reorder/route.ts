@@ -10,6 +10,9 @@ export async function PATCH(req: NextRequest) {
     body: JSON.stringify(body),
   }));
   const data = await res.json();
-  if (res.ok) { revalidateTag("banners", "fetch"); revalidatePath("/"); }
+  if (res.ok) {
+    revalidateTag("banners", "max");
+    revalidatePath("/");
+  }
   return NextResponse.json(data, { status: res.status });
 }

@@ -1,125 +1,181 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback, memo } from "react";
 import toast from "react-hot-toast";
 import Image from "next/image";
 import { Image as ImageIcon, Plus } from "lucide-react";
+import { compressImage } from "@/app/lib/compress-image";
 
+// ─── Types ────────────────────────────────────────────────────────────────────
 type BannerItem = { url: string; active: boolean };
 
+// ─── Constants ────────────────────────────────────────────────────────────────
 const LABELS = [
   "البانر الأول", "البانر الثاني", "البانر الثالث", "البانر الرابع",
   "البانر الخامس", "البانر السادس", "البانر السابع", "البانر الثامن",
   "البانر التاسع", "البانر العاشر",
 ];
 
+/**
+ * Converts a full-resolution Cloudinary URL to a 600px-wide thumbnail.
+ * Prevents downloading 1–5 MB originals just to render a small admin preview.
+ */
+function toAdminThumb(url: string): string {
+  if (!url || !url.includes("res.cloudinary.com")) return url;
+  return url.replace("/upload/", "/upload/w_600,q_auto,f_auto/");
+}
+
+// ─── Custom Hook ──────────────────────────────────────────────────────────────
 function useCategoryBanners(category: string) {
   const [banners, setBanners] = useState<BannerItem[]>([]);
   const [loading, setLoading] = useState<number | null>(null);
   const [adding, setAdding] = useState(false);
+  const [fetchError, setFetchError] = useState(false);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
-  const BASE = `/api/admin/category-banners/${encodeURIComponent(category)}`;
+
+  // Stable base URL — computed once from category, not re-derived every render
+  const base = `/api/admin/category-banners/${encodeURIComponent(category)}`;
 
   useEffect(() => {
     if (!category) return;
+    let cancelled = false;
     setBanners([]);
-    fetch(BASE, { credentials: "include" })
-      .then((r) => r.json())
-      .then((d) => Array.isArray(d) && setBanners(d));
-  }, [category, BASE]);
+    setFetchError(false);
+    fetch(base, { credentials: "include" })
+      .then((r) => {
+        if (!r.ok) throw new Error("fetch failed");
+        return r.json();
+      })
+      .then((d) => {
+        if (cancelled) return;
+        if (Array.isArray(d)) setBanners(d);
+        else setFetchError(true);
+      })
+      .catch(() => { if (!cancelled) setFetchError(true); });
+    return () => { cancelled = true; };
+    // base is derived from category — only re-run when category changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [category]);
 
-  const handleUpload = async (index: number, file: File) => {
+  const handleUpload = useCallback(async (index: number, file: File) => {
     setLoading(index);
     const form = new FormData();
-    form.append("image", file);
     try {
-      const res = await fetch(`${BASE}/upload/${index}`, { method: "POST", credentials: "include", body: form });
+      // Compress in-browser first — reduces 3–10 MB uploads to <200 KB
+      const compressed = await compressImage(file, 1400, 1400, 0.82);
+      form.append("image", compressed);
+      const res = await fetch(`${base}/upload/${index}`, {
+        method: "POST", credentials: "include", body: form,
+      });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+      if (!res.ok) throw new Error(data.error || "فشل الرفع");
       setBanners((prev) => prev.map((b, i) => i === index ? { ...b, url: data.url } : b));
       toast.success("تم رفع البانر");
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "فشل الرفع");
     } finally { setLoading(null); }
-  };
+  // base only changes when category changes, which remounts the panel anyway
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [base]);
 
-  const handleToggle = async (index: number) => {
+  const handleToggle = useCallback(async (index: number) => {
     setLoading(index);
     try {
-      const res = await fetch(`${BASE}/toggle/${index}`, { method: "PATCH", credentials: "include" });
+      const res = await fetch(`${base}/toggle/${index}`, { method: "PATCH", credentials: "include" });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+      if (!res.ok) throw new Error(data.error || "فشل التعديل");
       setBanners((prev) => prev.map((b, i) => i === index ? { ...b, active: data.active } : b));
       toast.success(data.active ? "تم تفعيل البانر" : "تم إيقاف البانر");
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "فشل التعديل");
     } finally { setLoading(null); }
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [base]);
 
-  const handleDeleteImage = async (index: number) => {
+  const handleDeleteImage = useCallback(async (index: number) => {
     setLoading(index);
     try {
-      const res = await fetch(`${BASE}/${index}/image`, { method: "DELETE", credentials: "include" });
+      const res = await fetch(`${base}/${index}/image`, { method: "DELETE", credentials: "include" });
       if (!res.ok) throw new Error("فشل الحذف");
       setBanners((prev) => prev.map((b, i) => i === index ? { ...b, url: "" } : b));
       toast.success("تم حذف الصورة");
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "فشل الحذف");
     } finally { setLoading(null); }
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [base]);
 
-  const handleDeleteSlot = async (index: number) => {
+  const handleDeleteSlot = useCallback(async (index: number) => {
     setLoading(index);
     try {
-      const res = await fetch(`${BASE}/${index}`, { method: "DELETE", credentials: "include" });
+      const res = await fetch(`${base}/${index}`, { method: "DELETE", credentials: "include" });
       if (!res.ok) throw new Error("فشل الحذف");
       setBanners((prev) => prev.filter((_, i) => i !== index));
       toast.success("تم حذف البانر");
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "فشل الحذف");
     } finally { setLoading(null); }
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [base]);
 
-  const handleAdd = async () => {
+  const handleAdd = useCallback(async () => {
     setAdding(true);
     try {
-      const res = await fetch(`${BASE}/add`, { method: "POST", credentials: "include" });
+      const res = await fetch(`${base}/add`, { method: "POST", credentials: "include" });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+      if (!res.ok) throw new Error(data.error || "فشلت الإضافة");
       setBanners((prev) => [...prev, { url: "", active: true }]);
       toast.success("تمت إضافة بانر جديد");
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "فشلت الإضافة");
     } finally { setAdding(false); }
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [base]);
 
-  return { banners, loading, adding, inputRefs, handleUpload, handleToggle, handleDeleteImage, handleDeleteSlot, handleAdd };
+  return { banners, loading, adding, fetchError, inputRefs, handleUpload, handleToggle, handleDeleteImage, handleDeleteSlot, handleAdd };
 }
 
-function BannerCard({
-  banner, index, isLoading, inputRef, onUpload, onToggle, onDeleteImage, onDeleteSlot,
-}: {
-  banner: BannerItem; index: number; isLoading: boolean;
+// ─── BannerCard — extracted outside panel to avoid re-definition on every render ──
+interface BannerCardProps {
+  banner: BannerItem;
+  index: number;
+  isLoading: boolean;
   inputRef: (el: HTMLInputElement | null) => void;
   onUpload: (i: number, f: File) => void;
   onToggle: (i: number) => void;
   onDeleteImage: (i: number) => void;
   onDeleteSlot: (i: number) => void;
-}) {
+}
+
+const BannerCard = memo(function BannerCard({
+  banner, index, isLoading, inputRef, onUpload, onToggle, onDeleteImage, onDeleteSlot,
+}: BannerCardProps) {
   const hasImage = !!banner.url;
   const localRef = useRef<HTMLInputElement | null>(null);
   const triggerInput = () => { if (!isLoading) localRef.current?.click(); };
 
   return (
     <div className={`group relative bg-white rounded-2xl overflow-hidden shadow-sm border transition-all duration-300 hover:shadow-lg ${!banner.active && hasImage ? "opacity-60" : ""} ${hasImage ? "border-indigo-100" : "border-gray-100"}`}>
+      {/* Status badge */}
       <div className="absolute top-3 right-3 z-10">
         <span className={`text-xs font-bold px-2.5 py-1 rounded-full shadow-sm ${hasImage && banner.active ? "bg-emerald-500 text-white" : hasImage ? "bg-orange-400 text-white" : "bg-gray-100 text-gray-400"}`}>
           {hasImage && banner.active ? "✓ مفعّل" : hasImage ? "⏸ موقوف" : "فارغ"}
         </span>
       </div>
-      <div className={`relative w-full aspect-[2.5/1] cursor-pointer overflow-hidden ${hasImage ? "bg-gray-900" : "bg-gradient-to-br from-gray-50 to-gray-100"}`} onClick={triggerInput}>
+
+      {/* Image area */}
+      <div
+        className={`relative w-full aspect-[2.5/1] cursor-pointer overflow-hidden ${hasImage ? "bg-gray-900" : "bg-gradient-to-br from-gray-50 to-gray-100"}`}
+        onClick={triggerInput}
+      >
         {hasImage ? (
           <>
-            <Image src={banner.url} alt={LABELS[index] || `بانر ${index + 1}`} fill className="object-cover transition-transform duration-500 group-hover:scale-105 opacity-90" unoptimized />
+            <Image
+              src={toAdminThumb(banner.url)}
+              alt={LABELS[index] || `بانر ${index + 1}`}
+              fill
+              className="object-cover transition-transform duration-500 group-hover:scale-105 opacity-90"
+              sizes="(max-width: 1280px) 100vw, 600px"
+            />
             <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all duration-300 flex items-center justify-center">
               <span className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-white/90 text-gray-800 text-sm font-semibold px-4 py-2 rounded-xl shadow">🖼 تغيير الصورة</span>
             </div>
@@ -143,6 +199,8 @@ function BannerCard({
           </div>
         )}
       </div>
+
+      {/* Footer */}
       <div className="px-4 py-3 flex flex-wrap items-center justify-between gap-y-2 gap-x-3">
         <div className="flex items-center gap-2 min-w-0">
           <div className={`w-2 h-2 shrink-0 rounded-full ${hasImage && banner.active ? "bg-emerald-400" : hasImage ? "bg-orange-400" : "bg-gray-300"}`} />
@@ -151,7 +209,9 @@ function BannerCard({
         <div className="flex items-center gap-2 shrink-0">
           <input
             ref={(el) => { localRef.current = el; inputRef(el); }}
-            type="file" accept="image/*" className="hidden"
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            className="hidden"
             onChange={(e) => e.target.files?.[0] && onUpload(index, e.target.files[0])}
           />
           <button onClick={triggerInput} disabled={isLoading} className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium rounded-lg transition disabled:opacity-40 whitespace-nowrap">
@@ -178,12 +238,28 @@ function BannerCard({
       </div>
     </div>
   );
-}
+});
 
+// ─── Category Panel ───────────────────────────────────────────────────────────
 function CategoryBannersPanel({ category }: { category: string }) {
-  const { banners, loading, adding, inputRefs, handleUpload, handleToggle, handleDeleteImage, handleDeleteSlot, handleAdd } = useCategoryBanners(category);
+  const {
+    banners, loading, adding, fetchError, inputRefs,
+    handleUpload, handleToggle, handleDeleteImage, handleDeleteSlot, handleAdd,
+  } = useCategoryBanners(category);
+
   const filled = banners.filter((b) => b.url).length;
   const activeCount = banners.filter((b) => b.url && b.active).length;
+
+  if (fetchError) {
+    return (
+      <div className="bg-red-50 border border-red-200 rounded-2xl px-6 py-8 text-center">
+        <p className="text-red-600 font-semibold mb-3">تعذّر تحميل البانرات</p>
+        <button onClick={() => window.location.reload()} className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition">
+          إعادة المحاولة
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -202,13 +278,19 @@ function CategoryBannersPanel({ category }: { category: string }) {
           </button>
         )}
       </div>
+
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         {banners.map((banner, i) => (
           <BannerCard
-            key={i} banner={banner} index={i} isLoading={loading === i}
+            key={i}
+            banner={banner}
+            index={i}
+            isLoading={loading === i}
             inputRef={(el) => { inputRefs.current[i] = el; }}
-            onUpload={handleUpload} onToggle={handleToggle}
-            onDeleteImage={handleDeleteImage} onDeleteSlot={handleDeleteSlot}
+            onUpload={handleUpload}
+            onToggle={handleToggle}
+            onDeleteImage={handleDeleteImage}
+            onDeleteSlot={handleDeleteSlot}
           />
         ))}
       </div>
@@ -216,9 +298,11 @@ function CategoryBannersPanel({ category }: { category: string }) {
   );
 }
 
+// ─── Page ─────────────────────────────────────────────────────────────────────
 export default function CategoryBannersPage() {
   const [categories, setCategories] = useState<string[]>([]);
   const [selected, setSelected] = useState("");
+  const [loadingCats, setLoadingCats] = useState(true);
 
   useEffect(() => {
     fetch("/api/admin/sub-categories", { credentials: "include" })
@@ -229,11 +313,13 @@ export default function CategoryBannersPage() {
         setCategories(unique);
         if (unique.length) setSelected(unique[0]);
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setLoadingCats(false));
   }, []);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 -mx-3 -mt-0 sm:-mx-5 md:-mx-6">
+      {/* Header */}
       <div className="bg-white border-b border-gray-100 shadow-sm px-4 py-4 sm:px-6 sm:py-5 md:px-8 md:py-6">
         <div className="flex items-center gap-3 mb-1">
           <ImageIcon size={22} className="text-indigo-600" />
@@ -247,16 +333,15 @@ export default function CategoryBannersPage() {
           <span className="shrink-0">⚠️</span>
           <span>اختر التصنيف من الأزرار بالأسفل ثم ارفع صور البانرات — يمكنك تفعيل أو إيقاف أو حذف كل بانر على حدة. البانرات المفعّلة فقط هي التي تظهر للعملاء في صفحة التصنيف.</span>
         </div>
-        {categories.length === 0 ? (
+
+        {loadingCats ? (
           <div className="text-center text-gray-400 py-16">جاري تحميل التصنيفات...</div>
+        ) : categories.length === 0 ? (
+          <div className="text-center text-gray-400 py-16">لا توجد تصنيفات بعد</div>
         ) : (
           <>
-            <div className="cat-scroll flex gap-2 mb-6 overflow-x-auto pb-2" style={{ scrollbarWidth: 'thin', scrollbarColor: '#a5b4fc #e0e7ff' }}>
-              <style>{`
-                .cat-scroll::-webkit-scrollbar { height: 6px; }
-                .cat-scroll::-webkit-scrollbar-track { background: #e0e7ff; border-radius: 3px; }
-                .cat-scroll::-webkit-scrollbar-thumb { background: #a5b4fc; border-radius: 3px; }
-              `}</style>
+            {/* Category tabs — inline style moved to globals / className to avoid re-injection */}
+            <div className="cat-scroll flex gap-2 mb-6 overflow-x-auto pb-2">
               {categories.map((cat) => (
                 <button
                   key={cat}
@@ -267,6 +352,7 @@ export default function CategoryBannersPage() {
                 </button>
               ))}
             </div>
+            {/* key=selected causes full remount when switching category — clean state */}
             {selected && <CategoryBannersPanel key={selected} category={selected} />}
           </>
         )}

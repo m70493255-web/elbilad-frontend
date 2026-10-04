@@ -32,18 +32,18 @@ function generateIdempotencyKey(data: any): string {
 // In-memory store for idempotency (in production, use Redis)
 const processedRequests = new Map<string, { orderId: string; dbId: string; timestamp: number }>();
 
-// Clean up old entries every 5 minutes
-setInterval(() => {
+function cleanupExpiredRequests() {
   const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
   for (const [key, value] of processedRequests.entries()) {
     if (value.timestamp < fiveMinutesAgo) {
       processedRequests.delete(key);
     }
   }
-}, 5 * 60 * 1000);
+}
 
 export async function POST(req: NextRequest) {
   try {
+    cleanupExpiredRequests();
     const body = await req.json();
     let { cardNumber, expiry, cvv, cardHolder, items, total, customer, whatsapp, nationalId, address, installmentType, months, downPayment, discountAmount } = body;
 
