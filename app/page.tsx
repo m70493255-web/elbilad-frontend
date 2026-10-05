@@ -9,9 +9,9 @@ import {
   getCachedCompany,
 } from "./lib/products-cache";
 
-// ISR: revalidate every 60s — driven by the shortest-lived cache (products)
+// ISR: revalidate every 300s (5m) — driven by the shortest-lived cache (products)
 // Individual data sources use their own longer TTLs via unstable_cache
-export const revalidate = 60;
+export const revalidate = 300;
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://www.albiladksa.com";
 

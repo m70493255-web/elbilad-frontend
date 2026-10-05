@@ -3,7 +3,7 @@ import SmartphonesClient from "./SmartphonesClient";
 import { getCachedProducts, getCachedCompany } from "../../lib/products-cache";
 import { isSmartphone } from "../../lib/phoneUtils";
 
-export const revalidate = 60;
+export const revalidate = 300;
 
 const BACKEND = process.env.BACKEND_URL || "http://localhost:5000";
 const SITE_URL = "https://albilaad-ksa.com";

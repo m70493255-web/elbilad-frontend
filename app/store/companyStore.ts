@@ -36,7 +36,7 @@ export const useCompanyStore = create<CompanyStore>((set, get) => ({
     if (_fetchPromise) return _fetchPromise;
     _fetchPromise = (async () => {
       try {
-        const res = await fetch(`/api/admin/company`, { credentials: "include" });
+        const res = await fetch(`/api/company`);
         if (!res.ok) return;
         const text = await res.text();
         if (!text) return;

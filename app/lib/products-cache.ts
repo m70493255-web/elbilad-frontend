@@ -15,7 +15,7 @@ export const getCachedProducts = unstable_cache(
     }
   },
   ["all-products"],
-  { revalidate: 60, tags: ["products"] }
+  { revalidate: 300, tags: ["products"] }
 );
 
 // ─── Hero Banners ─────────────────────────────────────────────────────────────
@@ -136,7 +136,7 @@ export const getCachedProduct = (id: string) =>
       }
     },
     [`product-${id}`],
-    { revalidate: 60, tags: ["products"] }
+    { revalidate: 300, tags: ["products"] }
   )();
 
 // ─── Search (uses cached products, no extra DB hit) ──────────────────────────

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import PlaystationClient from "./PlaystationClient";
 import { getCachedProducts } from "../../lib/products-cache";
 
-export const revalidate = 60;
+export const revalidate = 300;
 
 const BACKEND = process.env.BACKEND_URL || "http://localhost:5000";
 const SITE_URL = "https://albilaad-ksa.com";

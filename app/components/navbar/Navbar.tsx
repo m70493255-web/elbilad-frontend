@@ -42,10 +42,11 @@ export default function Navbar({ initialLogo }: { initialLogo?: string }) {
   }, []);
 
   const fetchResults = useCallback(async (q: string) => {
-    if (!q.trim()) { setResults([]); return; }
+    const trimmed = q.trim();
+    if (!trimmed || trimmed.length < 2) { setResults([]); return; }
     setSearching(true);
     try {
-      const res = await fetch(`/api/products?q=${encodeURIComponent(q.trim())}`);
+      const res = await fetch(`/api/products?q=${encodeURIComponent(trimmed)}`);
       const data = await res.json();
       setResults(Array.isArray(data) ? data : []);
     } finally {
@@ -54,11 +55,15 @@ export default function Navbar({ initialLogo }: { initialLogo?: string }) {
   }, []);
 
   useEffect(() => {
-    const timer = setTimeout(() => fetchResults(searchQuery), 300);
+    const timer = setTimeout(() => fetchResults(searchQuery), 400);
     return () => clearTimeout(timer);
   }, [searchQuery, fetchResults]);
 
-  useEffect(() => { fetchCompany(); }, [fetchCompany]);
+  useEffect(() => {
+    if (!initialLogo && !storeLogo) {
+      fetchCompany();
+    }
+  }, [fetchCompany, initialLogo, storeLogo]);
 
   // Close mobile menu on resize to desktop
   useEffect(() => {

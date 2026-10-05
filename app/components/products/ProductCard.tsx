@@ -45,7 +45,7 @@ function ProductCard({ product, priority = false, reserveMode = false, largeImag
   return (
     <div className="group relative flex flex-col h-full bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-xl transition-all duration-300" dir="rtl">
       {/* Clickable Image */}
-      <Link href={`/product/${product._id}`} className="block relative w-full bg-gradient-to-b from-[#eef7f9] to-[#f8fcfd]" style={{ paddingBottom: "85%" }}>
+      <Link href={`/product/${product._id}`} prefetch={false} className="block relative w-full bg-gradient-to-b from-[#eef7f9] to-[#f8fcfd]" style={{ paddingBottom: "85%" }}>
         <div className="absolute inset-0 flex items-center justify-center p-3">
           {resolvedImage ? (
             <Image
@@ -79,7 +79,7 @@ function ProductCard({ product, priority = false, reserveMode = false, largeImag
 
       {/* Content */}
       <div className="flex flex-col flex-1 px-3 pt-2 pb-3 gap-1">
-        <Link href={`/product/${product._id}`}>
+        <Link href={`/product/${product._id}`} prefetch={false}>
           <h3 className="text-[11px] sm:text-[13px] font-bold text-gray-800 leading-snug line-clamp-2 min-h-[28px] hover:text-[#155E6F] transition-colors">
             {name}
           </h3>

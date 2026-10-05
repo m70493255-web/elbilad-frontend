@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import ProductPageClient from "./ProductPageClient";
 import { getCachedProduct, getCachedCompany } from "../../lib/products-cache";
 
-export const revalidate = 60;
+export const revalidate = 300;
 
 const BACKEND = process.env.BACKEND_URL || "http://localhost:5000";
 const SITE_URL = "https://www.albiladksa.com";

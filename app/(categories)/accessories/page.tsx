@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import AccessoriesClient from "./AccessoriesClient";
 import { getCachedProducts, getCachedCompany } from "../../lib/products-cache";
 
-export const revalidate = 60;
+export const revalidate = 300;
 
 const SITE_URL = "https://www.albiladksa.com";
 
