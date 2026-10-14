@@ -3,7 +3,6 @@ import { usePathname } from "next/navigation";
 import { Navbar } from "./navbar";
 import WhatsappButton from "./WhatsappButton";
 import SplashScreen from "./SplashScreen";
-import IPhone18Popup from "./IPhone18Popup";
 import { useCompanyStore } from "../store/companyStore";
 
 export default function ClientLayout({
@@ -47,7 +46,6 @@ export default function ClientLayout({
   return (
     <>
       {!isAdmin && <SplashScreen />}
-      {!isAdmin && <IPhone18Popup />}
       {!isAdmin && <Navbar initialLogo={logo} />}
       {children}
       {!isAdmin && footer}
