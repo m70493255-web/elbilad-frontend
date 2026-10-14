@@ -141,7 +141,7 @@ export default async function Footer() {
 
       <div className="border-t border-[#1F7A8C] max-w-6xl mx-auto px-4 py-4 text-xs text-[#F5F7F8]">
         <div className="flex flex-col items-center gap-2 sm:flex-row sm:justify-between">
-          <span className="text-center">الحقوق محفوظة مؤسسة البلاد الحديثة للإلكترونيات  © 2026</span>
+          <span className="text-center">الحقوق محفوظة مؤسسة البلاد الثابته لتقنية المعلومات  © 2026</span>
           <Image src="/payment-methods.webp" alt="بطاقات الدفع" width={120} height={40} className="object-contain" style={{ width: "auto" }} />
         </div>
       </div>
