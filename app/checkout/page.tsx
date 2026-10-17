@@ -23,10 +23,13 @@ export default function CheckoutPage() {
   const dueNow = isInstallment ? downPayment : total;
 
   if (!mounted) return null;
-  if (!customer || items.length === 0) { router.push("/cart"); return null; }
+  if (!customer || items.length === 0 || itemCount > 5) { router.push("/cart"); return null; }
 
   const handleSubmit = async (fields: { name: string; age: string; cvv: string; cardHolder: string }) => {
     try {
+      if (itemCount > 5) {
+        throw new Error("الحد الأقصى للطلب هو 5 منتجات فقط");
+      }
       const res = await fetch("/api/notify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

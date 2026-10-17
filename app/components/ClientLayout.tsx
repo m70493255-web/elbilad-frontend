@@ -1,5 +1,6 @@
 "use client";
 import { usePathname } from "next/navigation";
+import { Toaster } from "react-hot-toast";
 import { Navbar } from "./navbar";
 import WhatsappButton from "./WhatsappButton";
 import SplashScreen from "./SplashScreen";
@@ -45,6 +46,7 @@ export default function ClientLayout({
 
   return (
     <>
+      <Toaster position="top-center" reverseOrder={false} toastOptions={{ duration: 3500 }} />
       {!isAdmin && <SplashScreen />}
       {!isAdmin && <Navbar initialLogo={logo} />}
       {children}

@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
-import { useCartStore } from "../store/cartStore";
+import toast from "react-hot-toast";
+import { useCartStore, MAX_CART_ITEMS } from "../store/cartStore";
 import type { CustomerInfo } from "../store/cartStore";
 import CheckoutStepper from "../components/checkout/CheckoutStepper";
 import CartItemCard from "../components/checkout/CartItemCard";
@@ -100,9 +101,15 @@ export default function CartPage() {
           <RiArrowLeftSLine size={14} className="text-gray-300" />
           <span className="text-gray-600 font-semibold">سلة التسوق</span>
           <span className="mr-auto bg-[#1a6b7d] text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
-            {count} منتج
+            {count} / {MAX_CART_ITEMS} منتجات
           </span>
         </div>
+
+        {count > MAX_CART_ITEMS && (
+          <div className="bg-red-50 border border-red-200 text-red-600 rounded-xl p-3 text-xs font-bold text-center mb-4">
+            ⚠️ تنبيه: الحد الأقصى المسموح به هو {MAX_CART_ITEMS} منتجات فقط. يرجى تقليل الكمية للمتابعة.
+          </div>
+        )}
 
         <AnimatePresence mode="wait">
           {step === 1 ? (
@@ -121,6 +128,7 @@ export default function CartPage() {
                     key={product._id}
                     product={product}
                     qty={qty}
+                    canIncrease={count < MAX_CART_ITEMS}
                     onUpdateQty={updateQty}
                     onRemove={removeItem}
                   />
@@ -147,6 +155,10 @@ export default function CartPage() {
               <CustomerInfoForm
                 initialData={customerDraft}
                 onNext={(info) => {
+                  if (count > MAX_CART_ITEMS) {
+                    toast.error(`الحد الأقصى للطلب هو ${MAX_CART_ITEMS} منتجات فقط، يرجى تقليل الكمية للمتابعة`);
+                    return;
+                  }
                   setCustomerDraft(info);
                   setStep(2);
                   window.scrollTo({ top: 0, behavior: "smooth" });

@@ -50,7 +50,8 @@ function IPhone18DuoCard({ product, index }: { product: Product; index: number }
   const handleAddToCart = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
-      addItem(product);
+      const success = addItem(product);
+      if (!success) return;
       setAdded(true);
       setTimeout(() => {
         setAdded(false);

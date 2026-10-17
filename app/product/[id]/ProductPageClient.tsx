@@ -34,11 +34,11 @@ export default function ProductPageClient({ id, initialProduct }: { id: string; 
     return <div className="min-h-screen flex items-center justify-center"><p className="text-gray-400 text-lg">المنتج غير موجود</p></div>;
 
   const handleMobileAdd = () => {
+    const success = addItem(currentProductToAdd || product);
+    if (!success) return;
     setMobileLoading(true);
     setTimeout(() => {
       setMobileLoading(false);
-      // استخدام المنتج المحدث من ProductInfo أو المنتج الأصلي
-      addItem(currentProductToAdd || product);
       setAddedToCart(true);
       setMobilePopup(true);
       setTimeout(() => setMobilePopup(false), 3000);
@@ -106,9 +106,11 @@ export default function ProductPageClient({ id, initialProduct }: { id: string; 
                 product={product} 
                 addedToCart={addedToCart} 
                 onAddToCart={(updatedProduct) => { 
-                  setCurrentProductToAdd(updatedProduct);
-                  addItem(updatedProduct); 
-                  setAddedToCart(true); 
+                  const success = addItem(updatedProduct); 
+                  if (success) {
+                    setCurrentProductToAdd(updatedProduct);
+                    setAddedToCart(true); 
+                  }
                 }}
                 onVariantChange={useCallback((imgs: string[]) => setVariantImages(imgs), [])}
                 onPriceChange={useCallback((p: number) => setDisplayPrice(p), [])}

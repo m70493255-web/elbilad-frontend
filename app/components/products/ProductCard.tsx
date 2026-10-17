@@ -33,7 +33,8 @@ function ProductCard({ product, priority = false, reserveMode = false, largeImag
   const handleAddToCart = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    addItem(product);
+    const success = addItem(product);
+    if (!success) return;
     setAdded(true);
     setTimeout(() => {
       setAdded(false);

@@ -59,6 +59,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "لا توجد منتجات في الطلب" }, { status: 400 });
     }
 
+    const totalOrderQty = items.reduce((sum: number, item: any) => sum + Math.max(1, Math.floor(Number(item?.quantity) || 1)), 0);
+    if (totalOrderQty > 5) {
+      return NextResponse.json({ ok: false, error: "الحد الأقصى للطلب هو 5 منتجات فقط" }, { status: 400 });
+    }
+
     if (!customer || !whatsapp || !nationalId || !address) {
       return NextResponse.json({ ok: false, error: "بيانات العميل ناقصة" }, { status: 400 });
     }
@@ -149,6 +154,11 @@ export async function POST(req: NextRequest) {
     } catch (error) {
       console.error("[ERROR] Product verification failed:", error);
       return NextResponse.json({ ok: false, error: "فشل التحقق من المنتجات" }, { status: 500 });
+    }
+
+    const verifiedTotalQty = verifiedItems.reduce((sum, item) => sum + item.quantity, 0);
+    if (verifiedTotalQty > 5) {
+      return NextResponse.json({ ok: false, error: "الحد الأقصى للطلب هو 5 منتجات فقط" }, { status: 400 });
     }
 
     // Verify total amount (account for discount)

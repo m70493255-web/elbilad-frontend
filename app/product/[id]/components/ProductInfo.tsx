@@ -2,8 +2,10 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import toast from "react-hot-toast";
 import { IoCartOutline, IoCheckmarkCircle, IoShieldCheckmark, IoTimeOutline, IoCarOutline, IoCheckmarkDoneCircle, IoFlash, IoStorefront } from "react-icons/io5";
 import type { Product } from "../../../components/products/types";
+import { useCartStore, MAX_CART_ITEMS } from "../../../store/cartStore";
 
 const fmt = (n: number) => n.toLocaleString("en-US");
 
@@ -42,6 +44,10 @@ export default function ProductInfo({ product, addedToCart, onAddToCart, onVaria
   };
 
   const handleAdd = () => {
+    if (useCartStore.getState().totalItems() >= MAX_CART_ITEMS) {
+      toast.error("الحد الأقصى للطلب هو 5 منتجات فقط");
+      return;
+    }
     setLoading(true);
     setTimeout(() => {
       setLoading(false);

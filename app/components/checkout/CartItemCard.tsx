@@ -19,11 +19,12 @@ interface CartItemCardProps {
     image?: string;
   };
   qty: number;
+  canIncrease?: boolean;
   onUpdateQty: (id: string, qty: number) => void;
   onRemove: (id: string) => void;
 }
 
-export default function CartItemCard({ product, qty, onUpdateQty, onRemove }: CartItemCardProps) {
+export default function CartItemCard({ product, qty, canIncrease = true, onUpdateQty, onRemove }: CartItemCardProps) {
   const price = product.salePrice ?? product.originalPrice ?? product.price;
   const hasDiscount = product.salePrice && product.originalPrice && product.salePrice < product.originalPrice;
   const rawImg = product.images?.[0] || product.image;
@@ -87,8 +88,17 @@ export default function CartItemCard({ product, qty, onUpdateQty, onRemove }: Ca
               </motion.span>
             </AnimatePresence>
             <button
-              onClick={() => onUpdateQty(product._id, qty + 1)}
-              className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[#1a6b7d]/10 transition text-[#1a6b7d]"
+              onClick={() => {
+                if (!canIncrease) return;
+                onUpdateQty(product._id, qty + 1);
+              }}
+              disabled={!canIncrease}
+              title={!canIncrease ? "الحد الأقصى هو 5 منتجات فقط" : "زيادة الكمية"}
+              className={`w-7 h-7 flex items-center justify-center rounded-lg transition ${
+                !canIncrease
+                  ? "opacity-30 cursor-not-allowed text-gray-400"
+                  : "hover:bg-[#1a6b7d]/10 text-[#1a6b7d]"
+              }`}
             >
               <RiAddLine size={14} />
             </button>
